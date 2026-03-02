@@ -13,6 +13,15 @@ import (
 const defaultBaseURL = "https://api.loopengine.dev"
 const apiPath = "/feedback"
 
+// SendOptions optionally provides latitude and longitude for device-based geolocation.
+// When both GeoLat and GeoLon are non-zero, they are added to the request body
+// (geo_lat, geo_lon) and included in the HMAC signature. Pass nil or omit to use
+// IP-based geolocation. Valid ranges: latitude -90 to 90, longitude -180 to 180.
+type SendOptions struct {
+	GeoLat float64 // Latitude
+	GeoLon float64 // Longitude
+}
+
 // Client sends feedback to the LoopEngine Ingest API. Safe for concurrent use.
 type Client struct {
 	projectKey    string
@@ -42,8 +51,10 @@ func New(projectKey, projectSecret, projectID string, opts ...Option) (*Client, 
 
 // Send posts the payload to the Ingest API. payload is JSON-encoded; project_id is set automatically.
 // payload can be a map, struct, or any type that encoding/json can marshal.
-func (c *Client) Send(ctx context.Context, payload any) error {
-	body, err := c.buildBody(payload)
+// opts is optional: pass one SendOptions with both GeoLat and GeoLon non-zero to send
+// device coordinates (included in the signed body); omit or pass nil for IP-based geo.
+func (c *Client) Send(ctx context.Context, payload any, opts ...*SendOptions) error {
+	body, err := c.buildBody(payload, opts)
 	if err != nil {
 		return err
 	}
@@ -69,7 +80,9 @@ func (c *Client) Send(ctx context.Context, payload any) error {
 }
 
 // buildBody marshals payload to JSON and ensures project_id is set.
-func (c *Client) buildBody(payload any) ([]byte, error) {
+// When opts contains a non-nil SendOptions with both GeoLat and GeoLon non-zero,
+// geo_lat and geo_lon are added to the body.
+func (c *Client) buildBody(payload any, opts []*SendOptions) ([]byte, error) {
 	var m map[string]any
 	switch v := payload.(type) {
 	case map[string]any:
@@ -92,6 +105,13 @@ func (c *Client) buildBody(payload any) ([]byte, error) {
 		m = make(map[string]any, 1)
 	}
 	m["project_id"] = c.projectID
+	if len(opts) > 0 && opts[0] != nil {
+		o := opts[0]
+		if o.GeoLat != 0 || o.GeoLon != 0 {
+			m["geo_lat"] = o.GeoLat
+			m["geo_lon"] = o.GeoLon
+		}
+	}
 	return json.Marshal(m)
 }
 

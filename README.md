@@ -44,3 +44,16 @@ client, err := loopengine.New(key, secret, projectID,
     loopengine.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
 )
 ```
+
+## Geolocation
+
+You can send device location so feedback is associated with coordinates instead of IP-based geo. Pass an optional third argument to `Send` with `SendOptions` containing both `GeoLat` and `GeoLon`. When both are non-zero, the SDK adds `geo_lat` and `geo_lon` to the request body; they are included in the HMAC signature. Omit the third argument (or pass `nil`) to use IP-based geolocation. Valid ranges: latitude -90 to 90, longitude -180 to 180.
+
+```go
+// Without geo (IP-based location is used)
+err = client.Send(ctx, map[string]any{"message": "Feedback"})
+
+// With device coordinates
+err = client.Send(ctx, map[string]any{"message": "Bug at my location"},
+    &loopengine.SendOptions{GeoLat: 34.05, GeoLon: -118.25})
+```

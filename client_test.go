@@ -104,3 +104,33 @@ func TestSend_errorStatus(t *testing.T) {
 		t.Errorf("error should mention status: %v", err)
 	}
 }
+
+func TestSend_withGeoOptions(t *testing.T) {
+	var body []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+	target, _ := url.Parse(srv.URL)
+	c, err := New("pk", "psk", "proj_123", WithHTTPClient(&http.Client{
+		Transport: redirectTransport{target: target, rt: http.DefaultTransport},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = c.Send(context.Background(), map[string]any{"message": "hi"}, &SendOptions{GeoLat: 34.05, GeoLon: -118.25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body == nil {
+		t.Fatal("server did not receive body")
+	}
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "geo_lat") || !strings.Contains(bodyStr, "geo_lon") {
+		t.Errorf("body %s missing geo_lat or geo_lon", bodyStr)
+	}
+	if !strings.Contains(bodyStr, "34.05") || !strings.Contains(bodyStr, "-118.25") {
+		t.Errorf("body %s missing expected coordinate values", bodyStr)
+	}
+}
